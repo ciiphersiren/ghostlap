@@ -1,0 +1,11 @@
+# Grafana reads this at startup: Prometheus is the data source for all dashboards.
+apiVersion: 1
+
+datasources:
+  - name: Prometheus
+    uid: prometheus          # the dashboard JSON refers to this uid
+    type: prometheus
+    access: proxy            # Grafana's server queries Prometheus (inside the Docker network)
+    url: http://prometheus:9090
+    isDefault: true
+    editable: false

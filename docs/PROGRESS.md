@@ -1,5 +1,53 @@
 # Progress
 
+## Phase 5: Production polish (done locally; CI waits for a GitHub remote)
+
+**Start everything:** `cd infra` then `docker compose up --build -d`. Add `GRAFANA_ADMIN_PASSWORD` to `infra/.env` first (see `.env.example`).
+**Grafana:** http://localhost:3000 → dashboard "GhostLap Overview" (no login needed to view). **Prometheus:** http://localhost:9090
+**Cheater:** `cd game` then `.\gradlew.bat cheater:run --args="--rounds 20 --delay-ms 500"`
+**CI:** `.github/workflows/ci.yml` runs on every push and pull request.
+
+What exists:
+- race-service `LapMetrics`:
+  - `ghostlap_laps_submitted_total`
+  - `ghostlap_laps_rejected_total{reason}` (all 5 reasons, starting at 0)
+  - `ghostlap_lap_validation_seconds` timer with histogram buckets
+- Both services:
+  - `RequestIdFilter`: an `X-Request-Id` header (kept from the caller if safe, otherwise a new UUID), put in the MDC so every log line shows `INFO [<request id>]`, plus one access-log line per API request.
+  - HTTP latency histograms (`http_server_requests_seconds_bucket`) for p95.
+- `infra/prometheus/prometheus.yml` scrapes both services every 5 s.
+- `infra/grafana/` provisions the Prometheus data source and the dashboard, which has 10 panels:
+  - totals: laps submitted, laps rejected, rejected share, services up
+  - request rate and p95 latency per service
+  - laps per minute, and rejections per minute stacked by reason
+  - JVM heap (used and committed)
+  - lap validation time (p95 and average)
+- `game/cheater`: a command-line hacked client (reuses the game's `ApiClient`). Each round sends 6 fake laps:
+  - impossible time → TOO_FAST
+  - teleport → SPEED_EXCEEDED
+  - skipped checkpoints and checkpoints out of order → CHECKPOINT_ORDER
+  - half a ghost → SAMPLE_COUNT_MISMATCH
+  - edited lap time → BAD_GHOST
+- `.github/workflows/ci.yml`:
+  - a matrix job runs `./gradlew build` for shared, both services and the game on JDK 21
+  - a Docker job then validates the compose file and builds both images
+- Tests:
+  - `LapMetricsTest` (unit), `LapMetricsIntegrationTest` (counters move; names appear at `/actuator/prometheus`)
+  - `RequestIdFilterTest` in both services
+  - Totals: shared 16, player-service 21, race-service 55, game 52
+
+Verified:
+- **Prometheus:** both targets `up`. All panel queries return data, also when run through Grafana's query API.
+- **Grafana:** the dashboard was provisioned automatically and showed live numbers in the browser (264 laps submitted / 261 rejected during a cheater run).
+- **Cheater:** 5 rounds = 30 fake laps, every one rejected with the expected reason. A 40-round run moved the "rejected by reason" panel live.
+- **Logs:** race-service lines look like `INFO [35fc3db6-…] … LapService : Lap 30 by player 1 rejected: BAD_GHOST …`, then `RequestIdFilter : POST /api/v1/laps -> 201 (15 ms)` with the same ID.
+- **CI steps run locally:** `gradlew build` passes in all 4 projects, `docker compose config` passes with `.env.example`, and both `docker build`s succeed.
+- **Not verified: CI on GitHub.** The repo has no GitHub remote yet and the `gh` CLI isn't installed, so the workflow has not run there.
+
+Notes:
+- The `gradlew` files were stored without the executable bit (Windows doesn't track it). Fixed with `git update-index --chmod=+x`; otherwise CI on Linux would fail with "Permission denied".
+- The cheater's numbers dominate the "rejected share" panel. Honest laps from playing show up in "laps submitted" only.
+
 ## Phase 4: Integration (done)
 
 **Run:** start the backend (`cd infra` then `docker compose up -d`), then `cd game` then `.\gradlew.bat lwjgl3:run`

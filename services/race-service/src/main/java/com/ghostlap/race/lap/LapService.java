@@ -22,15 +22,17 @@ public class LapService {
     private final LapGhostRepository ghosts;
     private final LeaderboardService leaderboard;
     private final TransactionTemplate transaction;
+    private final LapMetrics metrics;
 
     public LapService(TrackCatalog tracks, LapValidator validator, LapRepository laps, LapGhostRepository ghosts,
-                      LeaderboardService leaderboard, TransactionTemplate transaction) {
+                      LeaderboardService leaderboard, TransactionTemplate transaction, LapMetrics metrics) {
         this.tracks = tracks;
         this.validator = validator;
         this.laps = laps;
         this.ghosts = ghosts;
         this.leaderboard = leaderboard;
         this.transaction = transaction;
+        this.metrics = metrics;
     }
 
     /**
@@ -41,7 +43,7 @@ public class LapService {
      */
     public LapSubmissionResponse submit(long playerId, String username, LapSubmissionRequest request) {
         Track track = tracks.get(request.trackId());
-        ValidationResult result = validator.validate(request, track);
+        ValidationResult result = metrics.timeValidation(() -> validator.validate(request, track));
         int[] checkpointTimes = request.checkpointTimesMs().stream().mapToInt(Integer::intValue).toArray();
 
         Lap lap = transaction.execute(status -> {
@@ -53,7 +55,9 @@ public class LapService {
             return saved;
         });
 
+        metrics.lapSubmitted();
         if (!result.isAccepted()) {
+            metrics.lapRejected(result.reason());
             log.info("Lap {} by player {} rejected: {} ({})", lap.getId(), playerId, result.reason(), result.detail());
             return LapSubmissionResponse.rejected(lap.getId(), result.reason());
         }

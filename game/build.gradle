@@ -1,4 +1,4 @@
-// Settings shared by every module (core + lwjgl3).
+// Settings shared by every module (core, lwjgl3, cheater).
 subprojects {
     repositories {
         mavenCentral()

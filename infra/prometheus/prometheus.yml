@@ -1,0 +1,16 @@
+# Prometheus pulls ("scrapes") metrics from each service's /actuator/prometheus every 5 seconds
+# and stores them as time series. The job name becomes the "job" label (used in the dashboard).
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: player-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["player-service:8081"]
+
+  - job_name: race-service
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["race-service:8082"]

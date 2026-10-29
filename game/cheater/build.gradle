@@ -1,0 +1,13 @@
+// A command-line tool, not part of the game: reuses core's ApiClient to send fake laps.
+//   .\gradlew.bat cheater:run --args="--rounds 20 --delay-ms 500"
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':core')
+}
+
+application {
+    mainClass = 'com.ghostlap.cheater.CheaterClient'
+}

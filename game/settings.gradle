@@ -4,4 +4,5 @@ rootProject.name = 'ghostlap-game'
 // Any dependency on com.ghostlap:ghost-format is replaced by that project.
 includeBuild '../shared/ghost-format'
 
-include 'core', 'lwjgl3'
+// cheater: a command-line "hacked client" that submits fake laps, to exercise the anti-cheat metrics.
+include 'core', 'lwjgl3', 'cheater'

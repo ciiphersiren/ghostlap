@@ -1,7 +1,12 @@
-# GhostLap local stack: Postgres + Redis + both services.
+# GhostLap local stack: Postgres + Redis + both services + Prometheus + Grafana.
 #   cd infra
 #   docker compose up --build
 # Values like ${JWT_SECRET} come from infra/.env (copy .env.example first).
+#
+#   player-service  http://localhost:8081/swagger-ui.html
+#   race-service    http://localhost:8082/swagger-ui.html
+#   Prometheus      http://localhost:9090
+#   Grafana         http://localhost:3000  (dashboard "GhostLap Overview", no login needed to view)
 
 services:
   postgres:
@@ -67,5 +72,37 @@ services:
       redis:
         condition: service_healthy
 
+  # Observability: Prometheus scrapes the services' metrics, Grafana draws them.
+  prometheus:
+    image: prom/prometheus:v3.5.0
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "127.0.0.1:9090:9090"     # http://localhost:9090 (query UI, Status -> Targets)
+    depends_on:
+      - player-service
+      - race-service
+
+  grafana:
+    image: grafana/grafana:12.1.0
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?set GRAFANA_ADMIN_PASSWORD in infra/.env}
+      # Anyone on this machine can view dashboards without logging in; editing needs the admin login.
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Viewer
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/ghostlap.json
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "127.0.0.1:3000:3000"     # http://localhost:3000
+    depends_on:
+      - prometheus
+
 volumes:
   postgres-data:
+  prometheus-data:
+  grafana-data:

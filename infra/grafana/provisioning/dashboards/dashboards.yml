@@ -1,0 +1,11 @@
+# Grafana loads every dashboard JSON file in this folder at startup ("provisioning"),
+# so the GhostLap dashboard appears on `docker compose up` without clicking anything.
+apiVersion: 1
+
+providers:
+  - name: ghostlap
+    folder: GhostLap
+    type: file
+    allowUiUpdates: false
+    options:
+      path: /var/lib/grafana/dashboards

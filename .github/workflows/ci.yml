@@ -1,0 +1,73 @@
+# Continuous integration: on every push (and pull request), build and test every project,
+# then build both Docker images. A red X on GitHub means something below failed.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+# The workflow only needs to read the code.
+permissions:
+  contents: read
+
+jobs:
+  # One job per project, run in parallel on fresh Ubuntu machines.
+  test:
+    name: Build and test ${{ matrix.project }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false          # one failing project doesn't cancel the others
+      matrix:
+        project:
+          - shared/ghost-format
+          - services/player-service
+          - services/race-service
+          - game
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      # Caches Gradle downloads between runs and checks gradle-wrapper.jar is the genuine one.
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      # "build" = compile + run all tests + package. The service tests use Testcontainers,
+      # which works here because GitHub's Ubuntu runners have Docker installed.
+      - name: Build and test
+        working-directory: ${{ matrix.project }}
+        run: ./gradlew build --no-daemon
+
+      - name: Upload test reports (only if something failed)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports-${{ strategy.job-index }}
+          path: ${{ matrix.project }}/**/build/reports/tests/
+
+  # Runs only after every test job passed.
+  docker:
+    name: Build Docker images
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      # The template values are enough to check the file; no real secrets in CI.
+      - name: Check docker-compose.yml is valid
+        run: |
+          cp infra/.env.example infra/.env
+          docker compose -f infra/docker-compose.yml config --quiet
+
+      # Same commands docker compose uses: build context = repo root.
+      - name: Build player-service image
+        run: docker build -f services/player-service/Dockerfile -t ghostlap/player-service:${{ github.sha }} .
+
+      - name: Build race-service image
+        run: docker build -f services/race-service/Dockerfile -t ghostlap/race-service:${{ github.sha }} .

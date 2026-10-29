@@ -91,3 +91,25 @@ One line per decision: what was chosen and why.
 - **Only the most recent unsent lap is kept for retry:** simple, and the leaderboard only counts a player's best anyway.
 - **Server URLs come from env vars `GHOSTLAP_PLAYER_URL` / `GHOSTLAP_RACE_URL`** (defaults: localhost:8081/8082), read by the desktop launcher.
 - **`LiveBackendTest` runs only with `GHOSTLAP_LIVE_TEST=true`:** the normal `gradlew test` must not need Docker. It uploads a lap driven by the real game physics (the autopilot, now a shared test helper) and checks that a second account downloads it.
+
+## Phase 5: Production polish
+- **Custom metrics live in one class (`LapMetrics`) using Micrometer, not the Prometheus client directly:** Micrometer is Spring Boot's metrics API, and the Prometheus registry turns `ghostlap.laps.rejected` into `ghostlap_laps_rejected_total`.
+- **`ghostlap_laps_submitted_total` counts every stored lap, accepted or rejected;** `ghostlap_laps_rejected_total{reason}` has one series per reason. Requests that fail before validation (400, 401, 404) are not laps and are not counted.
+- **All five reason counters are registered at 0 at startup:** each line exists in Grafana before the first cheat, and `increase()` works from the first rejection.
+- **The validation timer and HTTP requests publish histogram buckets:** p95 is computed in Prometheus with `histogram_quantile`, so it can be combined across instances. Pre-computed percentiles in the app can't be.
+- **Request IDs come from a servlet filter that runs before Spring Security:** even 401s get an ID. The ID goes into the logging MDC (`%X{requestId}` in `logging.pattern.level`) and the `X-Request-Id` response header.
+- **A caller's `X-Request-Id` is kept only if it is 1–64 letters, digits or dashes:** otherwise someone could inject fake log lines with newlines.
+- **One access-log line per API request ("POST /api/v1/laps -> 201 (15 ms)"), but not for `/actuator`:** Prometheus scrapes every 5 s and would flood the logs.
+- **The request-ID filter is copied into both services, not shared:** the services share no Spring code (only ghost-format), and it's one small class.
+- **Distributed tracing (traces) is not added:** the services never call each other, so a trace would always be one span long. Request IDs give the same "find all logs of one request" benefit here.
+- **Prometheus scrapes every 5 s; dashboard panels use `[1m]` windows:** live enough while playing, with enough samples per window for smooth lines.
+- **The dashboard and the data source are provisioned from files in `infra/grafana`;** they appear on `docker compose up` and live in git.
+- **Grafana allows anonymous read-only viewing; the admin password comes from `GRAFANA_ADMIN_PASSWORD`.** Prometheus and Grafana are bound to 127.0.0.1.
+- **Images pinned to exact versions (`prom/prometheus:v3.5.0`, `grafana/grafana:12.1.0`):** the dashboard JSON is tested against a known Grafana version.
+- **The cheater client is a `game/cheater` module that reuses the game's `ApiClient`:** it really is "a hacked game client", with no second HTTP/JSON implementation. Run with `.\gradlew.bat cheater:run`.
+- **The cheater only sends laps that must be rejected,** so it never pollutes the leaderboard. It prints "UNEXPECTED" if a reason doesn't match.
+- **CI: one parallel job per project (matrix), then a Docker job that needs all of them to pass:** a failure shows exactly which project broke, and images are only built from tested code.
+- **CI uses `./gradlew build` (compile + test + package), the same command developers run;** JDK 21 from Temurin, and `gradle/actions/setup-gradle` for caching and wrapper validation.
+- **The service tests run with real Postgres/Redis in CI** (Testcontainers on GitHub's Ubuntu runners, which have Docker).
+- **CI checks `docker-compose.yml` with the `.env.example` values,** so no secrets are needed in GitHub.
+- **The `gradlew` scripts are marked executable in git (`git update-index --chmod=+x`):** Windows doesn't track that flag, and Linux CI would otherwise fail with "Permission denied".
