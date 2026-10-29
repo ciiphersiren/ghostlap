@@ -113,3 +113,19 @@ One line per decision: what was chosen and why.
 - **The service tests run with real Postgres/Redis in CI** (Testcontainers on GitHub's Ubuntu runners, which have Docker).
 - **CI checks `docker-compose.yml` with the `.env.example` values,** so no secrets are needed in GitHub.
 - **The `gradlew` scripts are marked executable in git (`git update-index --chmod=+x`):** Windows doesn't track that flag, and Linux CI would otherwise fail with "Permission denied".
+
+## Phase 6: Performance and presentation
+- **Benchmark mode inside the game (`GHOSTLAP_BENCHMARK=1`), not an external profiler:** repeatable (autopilot, fixed duration, vsync off), prints the same numbers every time, and anyone can rerun it.
+- **`render()` CPU time is the main frame metric, FPS second:** uncapped FPS includes the GPU driver and the OS and swings ±15% with background load; our own code's time is far more stable.
+- **Compare changes with back-to-back A/B runs when results look odd:** the first culling runs showed lower FPS; alternating runs showed culling winning every round.
+- **The autopilot steering moved to `car/AutoDriver` in main code:** used by both the tests and benchmark mode, one copy.
+- **HUD text through a reused `StringBuilder` and `LapTimer.appendTime`:** zero per-frame garbage, and the code reads almost the same as before.
+- **Bounding-box culling of track segments instead of a static GPU mesh:** −66% vertices with ~30 lines of plain Java, no custom shaders.
+- **`HttpClient` built on a background thread (`CompletableFuture.supplyAsync`):** its ~250 ms TLS setup no longer delays the first frame.
+- **No texture atlas, no `Vector2` pooling:** measurements showed 1 texture binding and ~7 bytes of allocation per frame, so neither had anything to improve.
+- **AppCDS tried and reverted:** it only archives classes from JARs, and the Gradle run task uses class folders.
+- **k6 runs inside Docker on the compose network (`--profile loadtest`):** no k6 install needed, and it measures the services rather than Docker Desktop's port forwarding.
+- **Each load-test run starts from an empty database (`docker compose down -v`):** runs are comparable.
+- **Load-test fix: `LapGhost implements Persistable`:** an entity with an assigned id made Spring Data `merge` (SELECT, then INSERT); now it's a plain INSERT. Postgres counters showed exactly one extra index lookup per lap before, and zero after.
+- **Load-test fix: both Redis leaderboard writes (and the rebuild's two renames) run in one MULTI/EXEC transaction:** under load a reader saw a ranking entry without its details and returned HTTP 500. The reader now also skips a row with missing details instead of failing.
+- **README screenshots are real game captures; the Grafana image and the GIF are placeholders:** the only Grafana capture included personal browser tabs.

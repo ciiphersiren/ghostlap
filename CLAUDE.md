@@ -144,7 +144,7 @@ Rejected laps are stored with their reason and never reach the leaderboard. Each
 - [x] 3. Backend: player-service + race-service + Docker Compose + tests
 - [x] 4. Integration: game logs in, submits laps, downloads top ghost, shows leaderboard
 - [x] 5. Production polish: validation metrics, Prometheus/Grafana, CI pipeline
-- [ ] 6. Performance + load test + README/demo
+- [x] 6. Performance + load test + README/demo
 
 ## Current status
-Phase: 5 done (CI not yet run on GitHub: no remote configured). Next: Phase 6 (performance, load test, README).
+All 6 phases done. CI not yet run on GitHub (no remote configured). Remaining by hand: demo GIF + Grafana screenshot for the README.

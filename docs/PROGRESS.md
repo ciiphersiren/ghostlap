@@ -1,5 +1,43 @@
 # Progress
 
+## Phase 6: Performance and presentation (done)
+
+**Game benchmark:** `cd game; $env:GHOSTLAP_BENCHMARK="1"; .\gradlew.bat lwjgl3:run` (prints `[Startup]` and `[Benchmark]` lines, then exits)
+**Load test:** `cd infra; docker compose --profile loadtest run --rm k6`
+**Results and methods:** [PERFORMANCE.md](PERFORMANCE.md). **Front page:** [README.md](../README.md)
+
+What exists:
+- `perf/Benchmark`:
+  - autopilot (`car/AutoDriver`), vsync off, 5 s warm-up, then 20 s measured
+  - reports frame-time and `render()` percentiles, render-thread allocations, GCs, draw calls, vertices and texture binds
+- `perf/StartupTimer`: logs JVM start → `main()`, `main()` → `create()`, `create()` → first frame.
+- Game optimisations:
+  - garbage-free HUD and F3 overlay: 2,808 → 7 bytes/frame, 0 GCs
+  - track culling: 6,714 → ~2,300 vertices, `render()` −21% in an A/B test
+  - `HttpClient` built on a background thread: startup 1,633 → 1,134 ms
+- Not done, on purpose:
+  - texture atlas: only 1 texture bind per frame
+  - `Vector2` pooling: nothing left to pool
+  - AppCDS: tried and reverted, because it needs JARs and the run task uses class folders
+- `loadtest/ghostlap.js` (k6, 50 VUs, 90 s), run through a compose service under `profiles: [loadtest]`.
+- race-service fixes found by the load test, each with a regression test:
+  - `LapGhost implements Persistable`, removing the SELECT before every insert
+  - Redis leaderboard writes and rebuild renames in MULTI/EXEC, fixing the HTTP 500 race condition
+- `README.md`:
+  - pitch, real screenshots (`docs/images/`), Mermaid architecture, features
+  - 3-command quick start (checked: compose works with the `.env.example` values)
+  - performance tables, design summary, "built with an AI coding agent" section
+- Tests: shared 16, game 55 (1 opt-in), player-service 21, race-service 58.
+
+Verified (numbers are in PERFORMANCE.md):
+- Game: 3–4 benchmark runs per change, plus a 3-round A/B test for culling.
+- Backend: first k6 run, the fix, then a 2-round A/B test with the old race-service image, each on a fresh database: **752 → 832 req/s, p95 87 → 73 ms, 3 → 0 errors.**
+- After the fix, Postgres counters show 0 index lookups for 17,166 ghost inserts, down from 1 per insert.
+
+Notes:
+- Uncapped FPS and load-test throughput both swing ±15% with background load on the laptop. A first "after" load run looked like +51%; the A/B result is +11%.
+- README placeholders still to fill by hand: `docs/images/demo.gif` and `docs/images/grafana.png` (the only Grafana capture showed personal browser tabs).
+
 ## Phase 5: Production polish (done locally; CI waits for a GitHub remote)
 
 **Start everything:** `cd infra` then `docker compose up --build -d`. Add `GRAFANA_ADMIN_PASSWORD` to `infra/.env` first (see `.env.example`).
