@@ -1,0 +1,20 @@
+plugins {
+    id 'application'
+}
+
+dependencies {
+    implementation project(':core')
+    implementation "com.badlogicgames.gdx:gdx-backend-lwjgl3:$gdxVersion"
+    implementation "com.badlogicgames.gdx:gdx-platform:$gdxVersion:natives-desktop"
+}
+
+application {
+    mainClass = 'com.ghostlap.lwjgl3.Lwjgl3Launcher'
+}
+
+// Run from the assets folder so files load with relative paths.
+tasks.named('run', JavaExec) {
+    workingDir = rootProject.file('assets')
+    // libGDX loads native libraries; this flag silences the JDK warning about it.
+    jvmArgs '--enable-native-access=ALL-UNNAMED'
+}

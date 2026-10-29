@@ -1,0 +1,3 @@
+rootProject.name = 'ghostlap-game'
+
+include 'core', 'lwjgl3'

@@ -1,0 +1,12 @@
+// Settings shared by every module (core + lwjgl3).
+subprojects {
+    repositories {
+        mavenCentral()
+    }
+
+    // Compile to Java 21 bytecode, whatever JDK runs Gradle.
+    tasks.withType(JavaCompile).configureEach {
+        options.release = 21
+        options.encoding = 'UTF-8'
+    }
+}
