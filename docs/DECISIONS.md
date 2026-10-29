@@ -70,3 +70,24 @@ One line per decision: what was chosen and why.
 - **Postgres is published on host port 5433:** this laptop already runs a local PostgreSQL on 5432. Containers still talk to each other on 5432.
 - **Postgres and Redis ports are bound to 127.0.0.1 only;** Redis has no password because it is not reachable from outside this machine.
 - **Request IDs and the custom lap metrics are left for Phase 5** (production polish), as the phase checklist says.
+
+## Phase 4: Integration
+- **HTTP with the JDK's `java.net.http.HttpClient` (`sendAsync`), not libGDX's `Gdx.net`:** both are asynchronous, but HttpClient has connect/request timeouts built in and works without a running libGDX app, so `ApiClient` is unit-tested against a fake server. No new dependency.
+- **Network results reach the game through one door: `Gdx.app.postRunnable`:** HttpClient answers on its own threads; the callback is queued and runs on the render thread at the start of the next frame, so game state is only ever touched by one thread (no locks).
+- **Responses are parsed (and ghosts decoded) on the background thread;** only the finished object is posted to the render thread.
+- **JSON with libGDX's `JsonValue`/`JsonReader`:** already part of libGDX. Building requests with `JsonValue` escapes quotes in usernames and passwords correctly.
+- **The token stays in memory only (`Session` in `GhostLapGame`):** closing the game logs out, and no secret is written to disk.
+- **The client reads `username` and `exp` from the JWT payload:** it can show the right name and skip a request with an expired token. It can't verify the signature (only the servers know the secret), so the server still decides.
+- **UI skin built in code from a 1×1 white pixel and libGDX's default font:** no skin files (json/atlas/png) to ship or explain.
+- **Screens are switched at the start of the next frame (postRunnable) and the old one is disposed:** a screen never keeps drawing after its resources are freed.
+- **Each screen ignores network answers that arrive after it was disposed** (`disposed` flag).
+- **Screens: Login → Race ⇄ Results/Leaderboard (Tab).** The separate Menu screen from CLAUDE.md is not built yet; Login and Results cover its job for now.
+- **"Play offline" on the login screen:** the game is fully playable without the backend.
+- **The race uses the fastest ghost available:** the server's top ghost, or the local best if that is strictly faster. A ghost that arrives mid-lap is swapped in at the next lap start, so it doesn't jump.
+- **Local ghosts are stored per account (`~/.ghostlap/ghosts/players/<username>/`);** offline play keeps the old folder. Two accounts on one computer don't overwrite each other's personal best.
+- **Every completed lap is uploaded** (not only personal bests): the server keeps each player's best for the leaderboard, and the player sees ACCEPTED/REJECTED and their rank for every lap.
+- **`checkpointTimesMs` = lap ticks at checkpoints 1..7 and then at the finish line, converted to ms.** The last entry is the lap time, as the API requires.
+- **Failure handling:** server unreachable → keep racing, keep the lap and retry it at the next race start. 401 or expired token → log out, keep the lap, "press L to log in again", and send it after login. Rejected lap → shown with its reason code.
+- **Only the most recent unsent lap is kept for retry:** simple, and the leaderboard only counts a player's best anyway.
+- **Server URLs come from env vars `GHOSTLAP_PLAYER_URL` / `GHOSTLAP_RACE_URL`** (defaults: localhost:8081/8082), read by the desktop launcher.
+- **`LiveBackendTest` runs only with `GHOSTLAP_LIVE_TEST=true`:** the normal `gradlew test` must not need Docker. It uploads a lap driven by the real game physics (the autopilot, now a shared test helper) and checks that a second account downloads it.

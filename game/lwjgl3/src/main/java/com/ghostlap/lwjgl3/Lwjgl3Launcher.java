@@ -8,7 +8,15 @@ import com.ghostlap.GhostLapGame;
 public class Lwjgl3Launcher {
 
     public static void main(String[] args) {
-        new Lwjgl3Application(new GhostLapGame(), createConfiguration());
+        // Server addresses come from env vars; the defaults match infra/docker-compose.yml.
+        String playerServiceUrl = env("GHOSTLAP_PLAYER_URL", "http://localhost:8081");
+        String raceServiceUrl = env("GHOSTLAP_RACE_URL", "http://localhost:8082");
+        new Lwjgl3Application(new GhostLapGame(playerServiceUrl, raceServiceUrl), createConfiguration());
+    }
+
+    private static String env(String name, String defaultValue) {
+        String value = System.getenv(name);
+        return value == null || value.isBlank() ? defaultValue : value;
     }
 
     private static Lwjgl3ApplicationConfiguration createConfiguration() {

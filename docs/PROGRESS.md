@@ -1,5 +1,48 @@
 # Progress
 
+## Phase 4: Integration (done)
+
+**Run:** start the backend (`cd infra` then `docker compose up -d`), then `cd game` then `.\gradlew.bat lwjgl3:run`
+**Tests:** `cd game` then `.\gradlew.bat test` (52 tests, no backend needed).
+Live end-to-end test against docker compose: `$env:GHOSTLAP_LIVE_TEST="true"; .\gradlew.bat :core:test --tests "*LiveBackendTest"`
+
+Screens: **Login** (username, password, Log in / Register / Play offline) → **Race** → **Tab** → **Results/Leaderboard** (top 10, your row highlighted) → Enter → Race.
+Race keys: Arrows/WASD drive, R reset, Tab leaderboard, F3 debug, L log in (when offline or logged out).
+
+What exists:
+- `net/ApiClient`: async HTTP (JDK `HttpClient.sendAsync`) to both services.
+  - Calls: register, login, submitLap, fetchTopGhost, fetchLeaderboard.
+  - Responses are parsed on the background thread and delivered on the render thread via `Gdx.app.postRunnable`.
+  - Timeouts: 3 s to connect, 10 s per request.
+- `net/ApiError`: unreachable / 401 / 404 / 409 / 400 / 5xx, with the server's ProblemDetail message (first field error for 400s).
+- `net/Session`: token in memory only; username and expiry read from the JWT payload.
+- `ui/LoginScreen`, `ui/ResultsScreen`, `ui/UiSkin` (scene2d.ui, skin built in code).
+- `RaceScreen`:
+  - Downloads the top ghost at race start and races the fastest ghost available (server or local).
+  - Uploads every completed lap and shows "ACCEPTED - rank #n" or "REJECTED (REASON)" on the HUD.
+  - Saves personal bests locally, per account.
+- `LapTimer` records checkpoint splits (`getLastLapCheckpointTimesMs()`, last = lap time).
+- `GhostLapGame` owns the API client, skin, session and the one unsent lap.
+- Tests:
+  - `ApiClientTest`: 13 tests against a fake JDK `HttpServer`, including a check that calls return immediately and answer through the callback thread.
+  - `SessionTest`, new `LapTimerTest` cases.
+  - `LapSimulationTest` now also checks the checkpoint times.
+  - `LiveBackendTest`: opt-in, against the real backend.
+
+Verified:
+- **Live test against docker compose:** a lap driven by the real game physics was ACCEPTED. A second account downloaded it as the top ghost, byte for byte. A lap with tampered checkpoints came back REJECTED `CHECKPOINT_ORDER`. A forged token got 401.
+- **In the real game window:**
+  - A wrong password showed "Invalid username or password".
+  - Logged in as `player_b`, the HUD showed `GHOST 00:15.333 alice_… (server #1)`, and the ghost drove ahead along the track.
+  - Tab showed the leaderboard from the server.
+  - With race-service stopped, the leaderboard said "Server unreachable" and the race said "Server unreachable - …" while the game kept running.
+- Test accounts were removed afterwards (`docker compose down -v`).
+- Not exercised by hand: completing a full lap with the keyboard. Upload, ranking and saving are covered by the live test and unit tests.
+
+Notes:
+- When race-service is stopped, Docker Desktop still accepts connections on port 8082 without answering, so "unreachable" appears after the 3 s connect timeout rather than instantly. The game keeps running meanwhile.
+- The autopilot is deterministic: every run produces the identical 15.333 s ghost, so on a shared server the earliest identical lap wins the tie.
+
 ## Phase 3: Backend (done)
 
 **Start everything:** `Copy-Item infra\.env.example infra\.env` (once, then edit the values), then `cd infra` and `docker compose up --build`

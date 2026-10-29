@@ -100,6 +100,28 @@ class LapTimerTest {
     }
 
     @Test
+    void recordsCheckpointSplitsEndingWithTheLapTime() {
+        assertThat(timer.getLastLapCheckpointTimesMs()).isEmpty();
+
+        timer.onCheckpointCrossed(0);
+        driveFullLap(75); // a checkpoint every 75 ticks = 1250 ms
+
+        assertThat(timer.getLastLapCheckpointTimesMs())
+                .containsExactly(1250, 2500, 3750, 5000, 6250, 7500, 8750, 10_000)
+                .endsWith(timer.getLastLapMs());
+    }
+
+    @Test
+    void splitsBelongToTheLastCompletedLap() {
+        timer.onCheckpointCrossed(0);
+        driveFullLap(75);
+        tick(10);
+        timer.onCheckpointCrossed(1); // the next lap is under way
+
+        assertThat(timer.getLastLapCheckpointTimesMs()).hasSize(CHECKPOINTS).endsWith(10_000);
+    }
+
+    @Test
     void formatsTimes() {
         assertThat(LapTimer.formatTime(83_456)).isEqualTo("01:23.456");
         assertThat(LapTimer.formatTime(LapTimer.NO_TIME)).isEqualTo("--:--.---");

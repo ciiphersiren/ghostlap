@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.Locale;
 import java.util.Optional;
 
 /** Saves and loads the player's best ghost per track, as GhostCodec bytes in a local file. */
@@ -18,9 +19,22 @@ public class GhostStorage {
         this.directory = directory;
     }
 
-    /** {@code %USERPROFILE%\.ghostlap\ghosts}: outside the repo, so saved laps are never committed. */
+    /** {@code %USERPROFILE%\.ghostlap\ghosts}: outside the repo, so saved laps are never committed. Used offline. */
     public static GhostStorage inUserHome() {
-        return new GhostStorage(Path.of(System.getProperty("user.home"), ".ghostlap", "ghosts"));
+        return new GhostStorage(rootFolder());
+    }
+
+    /**
+     * {@code %USERPROFILE%\.ghostlap\ghosts\players\<username>}: each account keeps its own personal
+     * best, so two players sharing a computer don't overwrite each other's ghost. Usernames only
+     * contain letters, digits and _ (checked by player-service), so they are safe folder names.
+     */
+    public static GhostStorage forPlayer(String username) {
+        return new GhostStorage(rootFolder().resolve("players").resolve(username.toLowerCase(Locale.ROOT)));
+    }
+
+    private static Path rootFolder() {
+        return Path.of(System.getProperty("user.home"), ".ghostlap", "ghosts");
     }
 
     public Path fileFor(int trackId) {
