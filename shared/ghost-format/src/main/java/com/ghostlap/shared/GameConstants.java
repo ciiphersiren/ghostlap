@@ -1,8 +1,8 @@
-package com.ghostlap;
+package com.ghostlap.shared;
 
 /**
  * Tuning values for the simulation. Units: 1 world unit is roughly 1 pixel at default zoom.
- * In Phase 2 these move to shared/ghost-format so the server can validate laps with the same numbers.
+ * Shared by the game and race-service, so the server validates laps with the same numbers.
  */
 public final class GameConstants {
 
@@ -12,6 +12,10 @@ public final class GameConstants {
     // Fixed-timestep physics
     public static final int PHYSICS_HZ = 60;
     public static final float PHYSICS_STEP = 1f / PHYSICS_HZ;
+
+    // Ghosts
+    public static final int GHOST_SAMPLE_RATE_HZ = 30;
+    public static final int GHOST_SAMPLE_EVERY_TICKS = PHYSICS_HZ / GHOST_SAMPLE_RATE_HZ; // = 2
 
     // Car
     public static final float MAX_SPEED = 600f;             // units per second
@@ -27,7 +31,8 @@ public final class GameConstants {
     public static final float CAR_LENGTH = 44f;
     public static final float CAR_WIDTH = 22f;
 
-    // Track
+    // Track (there is only one track for now)
+    public static final int TRACK_ID = 1;
     public static final float TRACK_WIDTH = 150f;
     public static final int CHECKPOINT_COUNT = 8;
 }

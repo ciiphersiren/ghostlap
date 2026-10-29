@@ -1,0 +1,29 @@
+// Plain Java library shared by the game and race-service: the ghost codec and game constants.
+// No libGDX or Spring here, so both sides can depend on it.
+plugins {
+    id 'java-library'
+}
+
+// group + name are how the game's composite build (includeBuild) finds this project.
+group = 'com.ghostlap'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.release = 21
+    options.encoding = 'UTF-8'
+}
+
+dependencies {
+    testImplementation platform("org.junit:junit-bom:$junitVersion")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation "org.assertj:assertj-core:$assertjVersion"
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

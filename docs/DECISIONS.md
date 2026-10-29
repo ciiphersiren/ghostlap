@@ -17,3 +17,20 @@ One line per decision: what was chosen and why.
 - **Wrapper pins `distributionSha256Sum`:** the wrapper refuses a Gradle zip that has been tampered with or corrupted.
 - **Headless autopilot test (`LapSimulationTest`):** proves a valid lap can be driven with the real physics and tick order, without opening a window.
 - **R resets the race:** a small dev convenience, so you never have to drive back to the track.
+
+## Phase 2: Ghosts
+- **`shared/ghost-format` has zero dependencies (no libGDX):** race-service can use the same codec and constants without pulling in a game engine.
+- **Package `com.ghostlap.shared` (`GameConstants`) and `com.ghostlap.shared.ghost` (codec):** avoids two builds putting classes in the same package.
+- **Composite build (`includeBuild`) instead of publishing a jar:** a change to the codec takes effect in the game on the next build, with no version bumps or local Maven repo.
+- **The library has its own Gradle wrapper and tests:** run with `cd shared/ghost-format; .\gradlew.bat test`. The game's `test` task does not run an included build's tests.
+- **`Ghost` and `GhostSample` are Java records:** immutable, with `equals` for free, so the round-trip tests compare whole objects exactly.
+- **Every decode failure becomes `GhostFormatException`:** the server maps exactly one exception type to `BAD_GHOST`.
+- **Decode guards against hostile input:** sample count is capped (`MAX_SAMPLES`) before allocating, floats must be finite, and trailing bytes are rejected. Reading to the end also makes gzip check its CRC.
+- **Sample `i` = lap tick `2i`, including tick 0 at the start line:** sample count = lapTicks/2 + 1, which meets the server's ±2 rule.
+- **`LapTimer.onCheckpointCrossed` returns a `CrossingResult`:** the screen knows exactly when a lap starts or completes, without comparing counters.
+- **The ghost runs on the player's lap clock at `(lapTicks - 1 + alpha)`:** the same moment the player's interpolated car is drawn, so the two are compared fairly frame by frame.
+- **A new best replaces the ghost immediately:** your next lap races your latest best.
+- **Saved to `%USERPROFILE%\.ghostlap\ghosts\track-<id>.ghost` with `java.nio`, not `Gdx.files`:** outside the repo, and testable without starting libGDX.
+- **Save writes a temp file, then atomically moves it into place:** a crash mid-save can't destroy the previous best.
+- **A corrupt or missing ghost file is logged and ignored:** the game still starts, and the next best lap overwrites the file.
+- **Storage tests use `build/tmp` instead of JUnit `@TempDir`:** on this Windows machine, deleting a folder right after replacing a file in it failed in 2 of 5 runs ("directory not empty"), because a background process briefly held the file.

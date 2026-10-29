@@ -1,3 +1,7 @@
 rootProject.name = 'ghostlap-game'
 
+// Composite build: use shared/ghost-format straight from source instead of a published jar.
+// Any dependency on com.ghostlap:ghost-format is replaced by that project.
+includeBuild '../shared/ghost-format'
+
 include 'core', 'lwjgl3'

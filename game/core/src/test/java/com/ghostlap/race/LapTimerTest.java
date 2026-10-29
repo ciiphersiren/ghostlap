@@ -35,14 +35,25 @@ class LapTimerTest {
         assertThat(timer.isLapRunning()).isFalse();
         assertThat(timer.getCurrentLapMs()).isEqualTo(LapTimer.NO_TIME);
 
-        timer.onCheckpointCrossed(0);
+        assertThat(timer.onCheckpointCrossed(0)).isEqualTo(LapTimer.CrossingResult.LAP_STARTED);
         assertThat(timer.isLapRunning()).isTrue();
         assertThat(timer.getNextCheckpoint()).isEqualTo(1);
     }
 
     @Test
+    void reportsWhatEachCrossingDid() {
+        timer.onCheckpointCrossed(0);
+        assertThat(timer.onCheckpointCrossed(1)).isEqualTo(LapTimer.CrossingResult.CHECKPOINT);
+        assertThat(timer.onCheckpointCrossed(5)).isEqualTo(LapTimer.CrossingResult.IGNORED);
+        for (int cp = 2; cp < CHECKPOINTS; cp++) {
+            timer.onCheckpointCrossed(cp);
+        }
+        assertThat(timer.onCheckpointCrossed(0)).isEqualTo(LapTimer.CrossingResult.LAP_COMPLETED);
+    }
+
+    @Test
     void checkpointsBeforeStartAreIgnored() {
-        timer.onCheckpointCrossed(3);
+        assertThat(timer.onCheckpointCrossed(3)).isEqualTo(LapTimer.CrossingResult.IGNORED);
         assertThat(timer.isLapRunning()).isFalse();
         assertThat(timer.getNextCheckpoint()).isZero();
     }

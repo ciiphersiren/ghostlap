@@ -1,6 +1,6 @@
 package com.ghostlap.race;
 
-import com.ghostlap.GameConstants;
+import com.ghostlap.shared.GameConstants;
 
 /**
  * Counts physics ticks to time laps. A lap starts when the car crosses checkpoint 0 (start/finish)
@@ -40,18 +40,29 @@ public class LapTimer {
         }
     }
 
-    public void onCheckpointCrossed(int index) {
+    /** What crossing a checkpoint did, so the race screen can start/stop ghost recording. */
+    public enum CrossingResult {
+        IGNORED,        // wrong order
+        CHECKPOINT,     // an intermediate checkpoint
+        LAP_STARTED,    // first crossing of the start line
+        LAP_COMPLETED   // finished a lap; the next lap starts at the same moment
+    }
+
+    public CrossingResult onCheckpointCrossed(int index) {
         if (index != nextCheckpoint) {
-            return; // wrong order: ignore
-        }
-        if (index == 0) {
-            if (lapRunning) {
-                finishLap();
-            }
-            lapRunning = true;
-            lapTicks = 0;
+            return CrossingResult.IGNORED;
         }
         nextCheckpoint = (index + 1) % checkpointCount;
+        if (index != 0) {
+            return CrossingResult.CHECKPOINT;
+        }
+        boolean finished = lapRunning;
+        if (finished) {
+            finishLap();
+        }
+        lapRunning = true;
+        lapTicks = 0;
+        return finished ? CrossingResult.LAP_COMPLETED : CrossingResult.LAP_STARTED;
     }
 
     private void finishLap() {
@@ -64,6 +75,11 @@ public class LapTimer {
 
     public boolean isLapRunning() {
         return lapRunning;
+    }
+
+    /** Physics ticks since the start line was crossed (0 when no lap is running). */
+    public int getLapTicks() {
+        return lapTicks;
     }
 
     public int getNextCheckpoint() {

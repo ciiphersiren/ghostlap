@@ -4,7 +4,7 @@ import com.badlogic.gdx.math.CatmullRomSpline;
 import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import com.ghostlap.GameConstants;
+import com.ghostlap.shared.GameConstants;
 
 /**
  * A closed-loop track. A Catmull-Rom spline passes smoothly through the control points; we sample

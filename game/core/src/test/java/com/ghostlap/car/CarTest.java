@@ -5,10 +5,10 @@ import com.badlogic.gdx.math.Vector2;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-import static com.ghostlap.GameConstants.LATERAL_GRIP;
-import static com.ghostlap.GameConstants.MAX_SPEED;
-import static com.ghostlap.GameConstants.PHYSICS_HZ;
-import static com.ghostlap.GameConstants.PHYSICS_STEP;
+import static com.ghostlap.shared.GameConstants.LATERAL_GRIP;
+import static com.ghostlap.shared.GameConstants.MAX_SPEED;
+import static com.ghostlap.shared.GameConstants.PHYSICS_HZ;
+import static com.ghostlap.shared.GameConstants.PHYSICS_STEP;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.within;
 

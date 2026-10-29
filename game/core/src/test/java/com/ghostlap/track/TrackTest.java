@@ -2,7 +2,7 @@ package com.ghostlap.track;
 
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
-import com.ghostlap.GameConstants;
+import com.ghostlap.shared.GameConstants;
 import org.junit.jupiter.api.Test;
 
 import static org.assertj.core.api.Assertions.assertThat;

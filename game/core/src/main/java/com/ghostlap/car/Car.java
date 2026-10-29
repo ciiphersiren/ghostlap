@@ -3,7 +3,7 @@ package com.ghostlap.car;
 import com.badlogic.gdx.math.MathUtils;
 import com.badlogic.gdx.math.Vector2;
 
-import static com.ghostlap.GameConstants.*;
+import static com.ghostlap.shared.GameConstants.*;
 
 /**
  * Arcade top-down car. Each physics tick the velocity is split into a forward part (along the
