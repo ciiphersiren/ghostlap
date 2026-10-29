@@ -77,6 +77,19 @@ class LeaderboardControllerTest extends IntegrationTest {
     }
 
     @Test
+    void rowWithoutDetailsIsSkippedInsteadOfFailing() throws Exception {
+        submitAccepted(1, "reet", 15_000);
+        // What a reader could see mid-update before the writes were made transactional.
+        redis.opsForZSet().add("leaderboard:track:1", "999", 14_000);
+
+        mvc.perform(get("/api/v1/tracks/1/leaderboard"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$", hasSize(1)))
+                .andExpect(jsonPath("$[0].username").value("reet"))
+                .andExpect(jsonPath("$[0].rank").value(2)); // its real position on the board
+    }
+
+    @Test
     void unknownTrackIsNotFound() throws Exception {
         mvc.perform(get("/api/v1/tracks/99/leaderboard"))
                 .andExpect(status().isNotFound());

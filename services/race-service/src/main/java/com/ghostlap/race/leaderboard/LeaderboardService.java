@@ -8,6 +8,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.event.EventListener;
+import org.springframework.data.redis.core.RedisOperations;
+import org.springframework.data.redis.core.SessionCallback;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations.TypedTuple;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * Leaderboards in Redis. Per track there are two keys:
@@ -56,8 +59,30 @@ public class LeaderboardService {
         if (currentBest != null && currentBest <= lap.getLapTimeMs()) {
             return;
         }
-        redis.opsForZSet().add(boardKey(lap.getTrackId()), player, lap.getLapTimeMs());
-        redis.opsForHash().put(lapsKey(lap.getTrackId()), player, lap.getId() + ":" + lap.getUsername());
+        String details = lap.getId() + ":" + lap.getUsername();
+        // Both writes in one Redis transaction (MULTI ... EXEC): other clients see both or neither.
+        // Without it, the load test caught a reader between the two writes (a row with no details -> 500).
+        inTransaction(ops -> {
+            ops.opsForHash().put(lapsKey(lap.getTrackId()), player, details);
+            ops.opsForZSet().add(boardKey(lap.getTrackId()), player, lap.getLapTimeMs());
+        });
+    }
+
+    /**
+     * Runs Redis commands as one MULTI/EXEC transaction: they are queued and then executed together,
+     * with no other client's command in between.
+     */
+    private void inTransaction(Consumer<RedisOperations<String, String>> commands) {
+        redis.execute(new SessionCallback<List<Object>>() {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <K, V> List<Object> execute(RedisOperations<K, V> operations) {
+                RedisOperations<String, String> ops = (RedisOperations<String, String>) operations;
+                ops.multi();
+                commands.accept(ops);
+                return ops.exec();
+            }
+        });
     }
 
     /** The player's position (1 = fastest), or null if they have no accepted lap on this track. */
@@ -84,9 +109,15 @@ public class LeaderboardService {
         List<LeaderboardEntry> entries = new ArrayList<>();
         int i = 0;
         for (TypedTuple<String> row : rows) {
-            String[] lapIdAndName = String.valueOf(details.get(i)).split(":", 2);
-            entries.add(new LeaderboardEntry(i + 1, lapIdAndName[1], row.getScore().intValue(), Long.parseLong(lapIdAndName[0])));
+            Object detail = details.get(i);
             i++;
+            if (detail == null) {
+                // Shouldn't happen (writes are transactional), but never fail the whole board for one row.
+                log.warn("Leaderboard row for player {} has no details; skipped", row.getValue());
+                continue;
+            }
+            String[] lapIdAndName = detail.toString().split(":", 2);
+            entries.add(new LeaderboardEntry(i, lapIdAndName[1], row.getScore().intValue(), Long.parseLong(lapIdAndName[0])));
         }
         return entries;
     }
@@ -112,8 +143,11 @@ public class LeaderboardService {
             redis.opsForZSet().add(tmpBoard, player, lap.getLapTimeMs());
             redis.opsForHash().put(tmpLaps, player, lap.getId() + ":" + lap.getUsername());
         }
-        redis.rename(tmpBoard, boardKey(trackId));
-        redis.rename(tmpLaps, lapsKey(trackId));
+        // Swap both keys in one transaction, so a reader never sees a new board with old details.
+        inTransaction(ops -> {
+            ops.rename(tmpBoard, boardKey(trackId));
+            ops.rename(tmpLaps, lapsKey(trackId));
+        });
         return bestLaps.size();
     }
 

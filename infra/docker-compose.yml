@@ -102,6 +102,18 @@ services:
     depends_on:
       - prometheus
 
+  # Load test, only started on request:  docker compose --profile loadtest run --rm k6
+  k6:
+    image: grafana/k6:1.2.0
+    profiles: ["loadtest"]
+    volumes:
+      - ../loadtest:/scripts:ro
+      - ../docs/examples:/data:ro
+    command: run /scripts/ghostlap.js
+    depends_on:
+      - player-service
+      - race-service
+
 volumes:
   postgres-data:
   prometheus-data:

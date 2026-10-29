@@ -24,7 +24,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * (Testcontainers), called through MockMvc (real Spring MVC and security filters, no network socket).
  * Spring caches the context, so all test classes share one app and one pair of containers.
  */
-@SpringBootTest(properties = "ghostlap.jwt.secret=" + IntegrationTest.TEST_JWT_SECRET)
+@SpringBootTest(properties = {
+        "ghostlap.jwt.secret=" + IntegrationTest.TEST_JWT_SECRET,
+        // Lets tests count SQL statements (see LapGhostRepositoryTest).
+        "spring.jpa.properties.hibernate.generate_statistics=true"
+})
 @AutoConfigureMockMvc
 @AutoConfigureMetrics // tests turn metrics export off by default; we test /actuator/prometheus
 @Import(TestcontainersConfiguration.class)
