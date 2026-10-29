@@ -136,6 +136,7 @@ Rejected laps are stored with their reason and never reach the leaderboard. Each
 - Configuration comes from env vars. Commit `.env.example`, never real secrets.
 - Every endpoint has an integration test. All validation logic has unit tests.
 - At the end of each task, update `docs/PROGRESS.md` and tick the checklist below.
+- At the end of each phase, add its explanations, likely interview questions and gotchas to `docs/INTERVIEW_PREP.md` (the single file the developer studies from).
 
 ## Phase checklist
 - [x] 1. Game core: track, car physics, lap timing, checkpoints, debug overlay
