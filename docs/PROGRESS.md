@@ -1,5 +1,45 @@
 # Progress
 
+## Phase 3: Backend (done)
+
+**Start everything:** `Copy-Item infra\.env.example infra\.env` (once, then edit the values), then `cd infra` and `docker compose up --build`
+**Tests:** `cd services/player-service` then `.\gradlew.bat test` (18 tests); `cd services/race-service` then `.\gradlew.bat test` (45 tests). Docker Desktop must be running (Testcontainers).
+**Swagger UI:** http://localhost:8081/swagger-ui.html and http://localhost:8082/swagger-ui.html (walkthrough in [API.md](API.md))
+
+What exists:
+- `infra/docker-compose.yml`: Postgres 16 + Redis 7 + both services. `infra/postgres/init/01-create-databases.sh` creates the `players` and `race` databases, each owned by its own login. Secrets come from `infra/.env` (template: `infra/.env.example`).
+- `services/player-service` (port 8081), Spring Boot 4.1.2:
+  - `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/players/me`.
+  - BCrypt password hashes; HS256 JWTs (24 h) with `sub` = player id and a `username` claim.
+  - Flyway `V1__create_players.sql`; case-insensitive unique usernames.
+- `services/race-service` (port 8082), Spring Boot 4.1.2, uses `shared/ghost-format` via `includeBuild`:
+  - `POST /api/v1/laps`: `LapValidator` runs TOO_FAST, CHECKPOINT_ORDER, BAD_GHOST, SAMPLE_COUNT_MISMATCH, SPEED_EXCEEDED. Every lap is stored; rejected ones get a reason code and detail.
+  - Accepted ghosts are stored as `bytea` in `lap_ghosts`.
+  - `GET /api/v1/tracks/{trackId}/leaderboard`: Redis sorted set (one entry per player). `LeaderboardService.rebuild()` recreates it from Postgres, and it runs automatically at startup if the board is missing.
+  - `GET /api/v1/tracks/{trackId}/ghosts/top` and `GET /api/v1/laps/{lapId}/ghost`.
+  - Validates the same JWT with the same secret; no calls to player-service.
+- Both services: ProblemDetail errors (including 401s), Swagger UI (springdoc 3.2.0), Actuator `health` + `prometheus`, two-stage Dockerfiles, non-root containers.
+- Tests:
+  - Testcontainers integration tests for every endpoint (auth, `/me`, laps, leaderboard, ghosts, actuator, OpenAPI docs).
+  - Unit tests for each validation rule, including the boundaries (exactly 13,000 ms; ±2 samples; 650 vs 670 units/s).
+  - A leaderboard rebuild test.
+- `docs/API.md` and a ready-to-paste valid lap in `docs/examples/lap-16s.json`.
+
+Verified against the running compose stack:
+- Register → `/me` → submit lap (`ACCEPTED`, rank 1) → corrupt ghost (`REJECTED`, `BAD_GHOST`) → no token (401 ProblemDetail) → leaderboard → top ghost.
+- `players_app` cannot connect to the `race` database ("User does not have CONNECT privilege").
+- After `FLUSHALL` on Redis and restarting race-service, the leaderboard was rebuilt from Postgres ("Rebuilt leaderboard for track 1 from Postgres: 1 players").
+
+Environment notes:
+- Postgres is published on host port **5433**, because a local PostgreSQL already uses 5432 on this laptop.
+- The first `docker compose up --build` downloads Gradle and all dependencies inside Docker, which takes several minutes. Later builds reuse a cache.
+- First compose build failed: both images built in parallel and fought over the shared Gradle cache ("Timeout ... waiting for exclusive access"). Fixed with `sharing=locked` on the cache mount.
+
+Follow-ups:
+- Phase 4: the game must send `checkpointTimesMs` as 8 split times, the last one equal to `lapTimeMs` (see API.md).
+- Phase 5: request IDs in logs, `ghostlap_laps_*` metrics, validation timer.
+- Track 1's minimum lap time (13,000 ms) is an estimate; revisit once real laps come in.
+
 ## Phase 2: Ghosts (done)
 
 **Codec tests:** `cd shared/ghost-format` then `.\gradlew.bat test` (16 tests)

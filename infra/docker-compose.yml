@@ -1,0 +1,71 @@
+# GhostLap local stack: Postgres + Redis + both services.
+#   cd infra
+#   docker compose up --build
+# Values like ${JWT_SECRET} come from infra/.env (copy .env.example first).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in infra/.env}
+      # Read by the init script to create the per-service logins.
+      PLAYERS_DB_PASSWORD: ${PLAYERS_DB_PASSWORD:?set PLAYERS_DB_PASSWORD in infra/.env}
+      RACE_DB_PASSWORD: ${RACE_DB_PASSWORD:?set RACE_DB_PASSWORD in infra/.env}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./postgres/init:/docker-entrypoint-initdb.d:ro
+    ports:
+      # Host port 5433, because 5432 is often taken by a locally installed Postgres.
+      - "127.0.0.1:5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  player-service:
+    build:
+      context: ..                                   # repo root (see the Dockerfile)
+      dockerfile: services/player-service/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/players
+      DB_USERNAME: players_app
+      DB_PASSWORD: ${PLAYERS_DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in infra/.env}
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  race-service:
+    build:
+      context: ..                                   # repo root: the build needs shared/ghost-format too
+      dockerfile: services/race-service/Dockerfile
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/race
+      DB_USERNAME: race_app
+      DB_PASSWORD: ${RACE_DB_PASSWORD}
+      REDIS_HOST: redis
+      JWT_SECRET: ${JWT_SECRET}
+    ports:
+      - "8082:8082"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  postgres-data:

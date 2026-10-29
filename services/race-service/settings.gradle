@@ -1,0 +1,4 @@
+rootProject.name = 'race-service'
+
+// Same ghost codec and GameConstants as the game client, built from source.
+includeBuild '../../shared/ghost-format'

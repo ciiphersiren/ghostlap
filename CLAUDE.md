@@ -141,10 +141,10 @@ Rejected laps are stored with their reason and never reach the leaderboard. Each
 ## Phase checklist
 - [x] 1. Game core: track, car physics, lap timing, checkpoints, debug overlay
 - [x] 2. Ghosts: shared ghost-format library, record/save/playback locally
-- [ ] 3. Backend: player-service + race-service + Docker Compose + tests
+- [x] 3. Backend: player-service + race-service + Docker Compose + tests
 - [ ] 4. Integration: game logs in, submits laps, downloads top ghost, shows leaderboard
 - [ ] 5. Production polish: validation metrics, Prometheus/Grafana, CI pipeline
 - [ ] 6. Performance + load test + README/demo
 
 ## Current status
-Phase: 2 done. Next: Phase 3 (backend).
+Phase: 3 done. Next: Phase 4 (integration).

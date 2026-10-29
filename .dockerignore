@@ -1,0 +1,10 @@
+# Docker builds use the repo root as context. Send only what the service builds need.
+.git
+game
+infra
+docs
+loadtest
+**/build
+**/.gradle
+**/bin
+**/out

@@ -34,3 +34,39 @@ One line per decision: what was chosen and why.
 - **Save writes a temp file, then atomically moves it into place:** a crash mid-save can't destroy the previous best.
 - **A corrupt or missing ghost file is logged and ignored:** the game still starts, and the next best lap overwrites the file.
 - **Storage tests use `build/tmp` instead of JUnit `@TempDir`:** on this Windows machine, deleting a folder right after replacing a file in it failed in 2 of 5 runs ("directory not empty"), because a background process briefly held the file.
+
+## Phase 3: Backend
+- **Spring Boot 4.1.2 (latest stable on start.spring.io), projects generated from start.spring.io:** Boot 4 split the starters into modules (`spring-boot-starter-webmvc`, `-flyway`, ...), so generating them avoids guessing names.
+- **Java 21 via `options.release`, not the generated toolchain:** the toolchain would look for an installed JDK 21, and only 24/25 are installed. Same approach as the game.
+- **JWTs use Spring Security's built-in OAuth2 resource server (Nimbus), not an extra JWT library:** it both signs (`NimbusJwtEncoder`) and checks (`NimbusJwtDecoder`) HS256 tokens, and plugs straight into the security filter chain.
+- **Token claims: `sub` = player id, plus a `username` claim:** race-service can show names on the leaderboard without calling player-service.
+- **race-service also requires `iss = ghostlap` and a non-empty `username` claim:** a token missing them is rejected with 401 instead of failing later.
+- **The services never call each other:** the signed token carries everything race-service needs. One service being down doesn't break the other.
+- **player-service has no Redis dependency:** it doesn't use Redis, and an unused connection would only add a failing health check.
+- **One Postgres login per database (`players_app`, `race_app`), created by an init script:** each service can only connect to its own database, so data ownership is enforced, not just agreed.
+- **No foreign key from `laps.player_id` to players:** they are in different databases. The username is copied onto each lap at submit time.
+- **Flyway owns the schema; Hibernate runs with `ddl-auto=validate`:** the SQL is reviewed and versioned, and the app refuses to start if the entities don't match the tables.
+- **Usernames are unique ignoring case** (unique index on `LOWER(username)`), so "Reet" and "reet" can't both exist.
+- **Login gives the same 401 message for unknown user and wrong password:** it doesn't tell an attacker which usernames exist.
+- **Passwords are limited to 8–72 characters:** BCrypt ignores everything after 72 bytes.
+- **Security errors (401) are written as ProblemDetail by a custom entry point:** they come from the security filters, which run before the normal exception handler.
+- **A rejected lap is a normal `201` with `status: REJECTED`, not an HTTP error:** the request was fine; the lap just wasn't believable. It is stored with its reason code and a human-readable detail.
+- **Validation runs the cheap rules first (TOO_FAST, CHECKPOINT_ORDER), then decodes the ghost:** no gunzipping for laps that are obviously invalid.
+- **`checkpointTimesMs` has 8 entries, and the last one is the finish line, equal to `lapTimeMs`:** one time per checkpoint, in crossing order. The game must send exactly this in Phase 4.
+- **BAD_GHOST also covers a ghost whose header doesn't match the lap** (other track, other lap time, or a sample rate other than 30 Hz). A lower rate would hide movement from the speed check.
+- **Track 1 minimum lap time = 13,000 ms:** centerline 9,118 units at 600 units/s = 15.2 s; a racing line cuts corners, so we allow about 15% below that.
+- **Ghosts are stored as `bytea` in their own table (`lap_ghosts`), only for accepted laps:** listing laps never loads the binary data, and cheaters can't fill the database with junk. A plain `byte[]` maps to `bytea`; `@Lob` would use Postgres large objects instead.
+- **Postgres is written first, in one transaction (lap + ghost); Redis is updated after the commit:** if Redis fails, the lap is safe and the response just has no rank. A rebuild fixes the board.
+- **Redis leaderboard = a sorted set per track (member = playerId, score = best lap ms) plus a hash with `lapId:username` per player:** one row per player, ranks in O(log n), and the top 10 in two round trips.
+- **Leaderboard rebuild uses temporary keys and RENAME:** readers never see a half-built board. It runs automatically at startup when a track's board is missing from Redis.
+- **The top ghost is read from Postgres, not Redis:** it needs the ghost bytes, which only Postgres has, and Postgres is the source of truth.
+- **Leaderboards and ghosts are public GETs; submitting a lap needs a token.**
+- **Testcontainers with `postgres:16-alpine` and `redis:7-alpine`, matching docker-compose:** tests run against the same databases as production, not H2 or mocks.
+- **One shared Spring test context per service (a base `IntegrationTest` class):** containers start once per test run, not once per test class.
+- **`@AutoConfigureMetrics` in tests:** Spring Boot tests switch metrics export off by default, which hides `/actuator/prometheus`.
+- **Docker images are two-stage (JDK builds, JRE runs) and run as a non-root user.**
+- **Docker build context is the repo root:** race-service needs `shared/ghost-format` to build. `.dockerignore` keeps `game/`, `infra/` (with `.env`) and build output out.
+- **Gradle cache mount with `sharing=locked`:** compose builds both images in parallel; with a shared, unlocked cache the second build timed out waiting for the Gradle download lock.
+- **Postgres is published on host port 5433:** this laptop already runs a local PostgreSQL on 5432. Containers still talk to each other on 5432.
+- **Postgres and Redis ports are bound to 127.0.0.1 only;** Redis has no password because it is not reachable from outside this machine.
+- **Request IDs and the custom lap metrics are left for Phase 5** (production polish), as the phase checklist says.
