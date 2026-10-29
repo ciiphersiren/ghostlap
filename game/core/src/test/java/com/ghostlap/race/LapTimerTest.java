@@ -126,4 +126,22 @@ class LapTimerTest {
         assertThat(LapTimer.formatTime(83_456)).isEqualTo("01:23.456");
         assertThat(LapTimer.formatTime(LapTimer.NO_TIME)).isEqualTo("--:--.---");
     }
+
+    @Test
+    void formatsTimesWithLeadingZeros() {
+        assertThat(LapTimer.formatTime(0)).isEqualTo("00:00.000");
+        assertThat(LapTimer.formatTime(5_007)).isEqualTo("00:05.007");
+        assertThat(LapTimer.formatTime(15_333)).isEqualTo("00:15.333");
+        assertThat(LapTimer.formatTime(60_050)).isEqualTo("01:00.050");
+        assertThat(LapTimer.formatTime(754_999)).isEqualTo("12:34.999");
+    }
+
+    @Test
+    void appendsToAnExistingBuilder() {
+        StringBuilder text = new StringBuilder("LAP ");
+
+        LapTimer.appendTime(text, 15_333);
+
+        assertThat(text).hasToString("LAP 00:15.333");
+    }
 }

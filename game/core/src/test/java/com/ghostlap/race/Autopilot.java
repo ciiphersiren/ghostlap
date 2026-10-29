@@ -1,7 +1,6 @@
 package com.ghostlap.race;
 
-import com.badlogic.gdx.math.MathUtils;
-import com.badlogic.gdx.math.Vector2;
+import com.ghostlap.car.AutoDriver;
 import com.ghostlap.car.Car;
 import com.ghostlap.car.CarInput;
 import com.ghostlap.ghost.GhostRecorder;
@@ -17,9 +16,6 @@ import java.util.List;
  * RaceScreen, and returns each completed lap exactly as the game would upload it.
  */
 public final class Autopilot {
-
-    private static final int LOOK_AHEAD_SAMPLES = 8;
-    private static final float CORNER_SPEED = 330f;
 
     /** A completed lap: what RaceScreen puts in a LapUpload. */
     public record DrivenLap(int lapTimeMs, int[] checkpointTimesMs, Ghost ghost) {
@@ -44,7 +40,7 @@ public final class Autopilot {
         int maxTicks = 3 * 60 * GameConstants.PHYSICS_HZ; // 3 minutes of game time
         int offTrackTicks = 0;
         for (int tick = 0; tick < maxTicks && laps.size() < lapCount; tick++) {
-            steerTowardsTrack(track, car, input);
+            AutoDriver.steer(track, car, input);
 
             car.savePreviousState();
             boolean onTrack = track.isOnTrack(car.position);
@@ -67,27 +63,5 @@ public final class Autopilot {
             }
         }
         return new Run(laps, offTrackTicks, timer, track);
-    }
-
-    /** Aims at a centerline point a few samples ahead and slows down when it needs to turn a lot. */
-    private static void steerTowardsTrack(Track track, Car car, CarInput input) {
-        Vector2[] center = track.getCenterline();
-        int nearest = 0;
-        for (int i = 1; i < center.length; i++) {
-            if (center[i].dst2(car.position) < center[nearest].dst2(car.position)) {
-                nearest = i;
-            }
-        }
-        Vector2 target = center[(nearest + LOOK_AHEAD_SAMPLES) % center.length];
-        float wanted = MathUtils.atan2(target.y - car.position.y, target.x - car.position.x);
-        float error = wanted - car.heading;
-        error = MathUtils.atan2(MathUtils.sin(error), MathUtils.cos(error)); // shortest way round
-
-        input.clear();
-        input.steer = MathUtils.clamp(error * 4f, -1f, 1f);
-        boolean sharpTurn = Math.abs(error) > 0.25f;
-        float speed = car.getSpeed();
-        input.throttle = !sharpTurn || speed < CORNER_SPEED;
-        input.brake = sharpTurn && speed > CORNER_SPEED + 80f;
     }
 }

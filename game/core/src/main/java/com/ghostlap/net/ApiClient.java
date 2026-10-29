@@ -13,6 +13,7 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 
 /**
@@ -28,7 +29,13 @@ public class ApiClient {
     private static final Duration CONNECT_TIMEOUT = Duration.ofSeconds(3);
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(10);
 
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build();
+    /**
+     * Building an HttpClient takes ~250 ms (the JDK sets up TLS/SSL), measured in docs/PERFORMANCE.md.
+     * So it's built on a background thread as soon as the game starts, and every request waits for
+     * it with thenCompose. The first frame never waits; by the time someone clicks "Log in" it's ready.
+     */
+    private final CompletableFuture<HttpClient> http = CompletableFuture.supplyAsync(
+            () -> HttpClient.newBuilder().connectTimeout(CONNECT_TIMEOUT).build());
     private final String playerServiceUrl;
     private final String raceServiceUrl;
     private final Executor callbackThread;
@@ -115,7 +122,7 @@ public class ApiClient {
 
     /** Stops the HTTP threads when the game closes. */
     public void shutdown() {
-        http.shutdownNow();
+        http.thenAccept(HttpClient::shutdownNow);
     }
 
     // ---- plumbing ----
@@ -145,7 +152,7 @@ public class ApiClient {
      * background thread, once the response (or an error) arrives.
      */
     private <T> void send(HttpRequest request, Parser<T> parser, ApiCallback<T> callback) {
-        http.sendAsync(request, HttpResponse.BodyHandlers.ofString())
+        http.thenCompose(client -> client.sendAsync(request, HttpResponse.BodyHandlers.ofString()))
                 .whenComplete((response, error) -> {
                     T result = null;
                     ApiError failure = null;

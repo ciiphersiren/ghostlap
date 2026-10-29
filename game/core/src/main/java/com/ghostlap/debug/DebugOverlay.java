@@ -12,6 +12,7 @@ public class DebugOverlay {
     private static final long MB = 1024L * 1024L;
 
     private boolean visible;
+    private final StringBuilder text = new StringBuilder(64);
 
     public void toggle() {
         visible = !visible;
@@ -25,23 +26,34 @@ public class DebugOverlay {
         Runtime runtime = Runtime.getRuntime();
         long usedHeap = (runtime.totalMemory() - runtime.freeMemory()) / MB;
         long maxHeap = runtime.maxMemory() / MB;
-        float frameMs = Gdx.graphics.getDeltaTime() * 1000f;
+        int frameMicros = (int) (Gdx.graphics.getDeltaTime() * 1_000_000f);
 
-        String[] lines = {
-                "FPS: " + Gdx.graphics.getFramesPerSecond(),
-                String.format("Frame: %.2f ms", frameMs),
-                "Heap: " + usedHeap + " / " + maxHeap + " MB",
-                String.format("Speed: %.0f u/s", speed),
-                "Next checkpoint: " + nextCheckpoint + " / " + checkpointCount,
-                "On track: " + (onTrack ? "yes" : "no"),
-        };
-
+        // One reused StringBuilder per line: no new strings every frame (see RaceScreen.drawHud).
         font.setColor(Color.YELLOW);
         float y = topY;
-        for (String line : lines) {
-            font.draw(batch, line, x, y);
-            y -= LINE_HEIGHT;
+        text.setLength(0);
+        y = line(batch, font, x, y, text.append("FPS: ").append(Gdx.graphics.getFramesPerSecond()));
+        text.setLength(0);
+        text.append("Frame: ").append(frameMicros / 1000).append('.');
+        int hundredths = (frameMicros % 1000) / 10;
+        if (hundredths < 10) {
+            text.append('0');
         }
+        y = line(batch, font, x, y, text.append(hundredths).append(" ms"));
+        text.setLength(0);
+        y = line(batch, font, x, y, text.append("Heap: ").append(usedHeap).append(" / ").append(maxHeap).append(" MB"));
+        text.setLength(0);
+        y = line(batch, font, x, y, text.append("Speed: ").append(Math.round(speed)).append(" u/s"));
+        text.setLength(0);
+        y = line(batch, font, x, y, text.append("Next checkpoint: ").append(nextCheckpoint).append(" / ").append(checkpointCount));
+        text.setLength(0);
+        line(batch, font, x, y, text.append("On track: ").append(onTrack ? "yes" : "no"));
         font.setColor(Color.WHITE);
+    }
+
+    /** Draws one line and returns the y of the next one. */
+    private static float line(SpriteBatch batch, BitmapFont font, float x, float y, CharSequence line) {
+        font.draw(batch, line, x, y);
+        return y - LINE_HEIGHT;
     }
 }

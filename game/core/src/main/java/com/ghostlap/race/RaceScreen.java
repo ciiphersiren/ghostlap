@@ -15,6 +15,7 @@ import com.badlogic.gdx.utils.ScreenUtils;
 import com.badlogic.gdx.utils.viewport.ExtendViewport;
 import com.badlogic.gdx.utils.viewport.ScreenViewport;
 import com.ghostlap.GhostLapGame;
+import com.ghostlap.car.AutoDriver;
 import com.ghostlap.car.Car;
 import com.ghostlap.car.CarInput;
 import com.ghostlap.debug.DebugOverlay;
@@ -36,6 +37,7 @@ import com.ghostlap.shared.ghost.GhostFormatException;
 import com.ghostlap.track.Track;
 
 import java.io.IOException;
+import java.nio.file.Path;
 
 /**
  * The race. Physics runs at a fixed 60 Hz using an accumulator; rendering runs as fast as the
@@ -63,6 +65,8 @@ public class RaceScreen extends ScreenAdapter {
     private static final Color SERVER_COLOR = new Color(1f, 0.9f, 0.6f, 1f);
     private static final float GHOST_ALPHA = 0.45f;
     private static final String LOG_TAG = "GhostLap";
+    private static final String KEYS_ONLINE = "Arrows/WASD: drive    R: reset    Tab: leaderboard    F3: debug";
+    private static final String KEYS_OFFLINE = KEYS_ONLINE + "    L: log in";
 
     private final GhostLapGame game;
     private final Track track = Track.createDefault();
@@ -104,11 +108,18 @@ public class RaceScreen extends ScreenAdapter {
     private final Vector2 renderPosition = new Vector2();
     private final Vector2 cameraTarget = new Vector2();
     private final Vector2 ghostPosition = new Vector2();
+    /** Reused for every HUD line (see drawHud). */
+    private final StringBuilder hudText = new StringBuilder(128);
 
     public RaceScreen(GhostLapGame game) {
         this.game = game;
         Session session = game.getSession();
-        ghostStorage = session == null ? GhostStorage.inUserHome() : GhostStorage.forPlayer(session.username());
+        if (game.isBenchmarkMode()) {
+            // Benchmark laps must not overwrite the player's real personal best.
+            ghostStorage = new GhostStorage(Path.of(System.getProperty("java.io.tmpdir"), "ghostlap-benchmark"));
+        } else {
+            ghostStorage = session == null ? GhostStorage.inUserHome() : GhostStorage.forPlayer(session.username());
+        }
         font.getData().setScale(1.4f);
         loadLocalGhost();
         resetRace();
@@ -369,6 +380,10 @@ public class RaceScreen extends ScreenAdapter {
     }
 
     private void readCarInput() {
+        if (game.isBenchmarkMode()) {
+            AutoDriver.steer(track, car, input); // repeatable driving for measurements
+            return;
+        }
         input.clear();
         input.throttle = Gdx.input.isKeyPressed(Keys.UP) || Gdx.input.isKeyPressed(Keys.W);
         input.brake = Gdx.input.isKeyPressed(Keys.DOWN) || Gdx.input.isKeyPressed(Keys.S);
@@ -398,7 +413,7 @@ public class RaceScreen extends ScreenAdapter {
         Gdx.gl.glEnable(GL20.GL_BLEND);
         Gdx.gl.glBlendFunc(GL20.GL_SRC_ALPHA, GL20.GL_ONE_MINUS_SRC_ALPHA);
         shapes.begin(ShapeRenderer.ShapeType.Filled);
-        trackRenderer.draw(shapes, track, lapTimer.getNextCheckpoint());
+        trackRenderer.draw(shapes, track, lapTimer.getNextCheckpoint(), camera);
         if (ghostPlayer != null) {
             carRenderer.draw(shapes, ghostPosition.x, ghostPosition.y, ghostHeading, GHOST_COLOR, GHOST_ALPHA);
         }
@@ -413,22 +428,37 @@ public class RaceScreen extends ScreenAdapter {
         batch.end();
     }
 
+    /**
+     * Each HUD line is written into the same reused StringBuilder and drawn straight away, so the
+     * HUD creates no new strings per frame (no garbage for the GC). font.draw accepts any CharSequence.
+     */
     private void drawHud() {
         float top = hudViewport.getWorldHeight() - HUD_MARGIN;
         float lineHeight = font.getLineHeight();
 
-        String current = lapTimer.isLapRunning()
-                ? LapTimer.formatTime(lapTimer.getCurrentLapMs())
-                : "cross the start line";
-        font.draw(batch, "LAP   " + current, HUD_MARGIN, top);
-        font.draw(batch, "LAST  " + LapTimer.formatTime(lapTimer.getLastLapMs()), HUD_MARGIN, top - lineHeight);
-        font.draw(batch, "BEST  " + LapTimer.formatTime(lapTimer.getBestLapMs()), HUD_MARGIN, top - 2 * lineHeight);
-        font.draw(batch, "LAPS  " + lapTimer.getCompletedLaps(), HUD_MARGIN, top - 3 * lineHeight);
-        String ghostText = ghostPlayer != null
-                ? LapTimer.formatTime(ghostPlayer.getGhost().lapTimeMs()) + "  " + ghostOwner
-                : "none yet";
+        hudText.setLength(0);
+        hudText.append("LAP   ");
+        if (lapTimer.isLapRunning()) {
+            LapTimer.appendTime(hudText, lapTimer.getCurrentLapMs());
+        } else {
+            hudText.append("cross the start line");
+        }
+        font.draw(batch, hudText, HUD_MARGIN, top);
+        font.draw(batch, timeLine("LAST  ", lapTimer.getLastLapMs()), HUD_MARGIN, top - lineHeight);
+        font.draw(batch, timeLine("BEST  ", lapTimer.getBestLapMs()), HUD_MARGIN, top - 2 * lineHeight);
+        hudText.setLength(0);
+        hudText.append("LAPS  ").append(lapTimer.getCompletedLaps());
+        font.draw(batch, hudText, HUD_MARGIN, top - 3 * lineHeight);
+
+        hudText.setLength(0);
+        hudText.append("GHOST ");
+        if (ghostPlayer != null) {
+            LapTimer.appendTime(hudText, ghostPlayer.getGhost().lapTimeMs()).append("  ").append(ghostOwner);
+        } else {
+            hudText.append("none yet");
+        }
         font.setColor(GHOST_COLOR);
-        font.draw(batch, "GHOST " + ghostText, HUD_MARGIN, top - 4 * lineHeight);
+        font.draw(batch, hudText, HUD_MARGIN, top - 4 * lineHeight);
         font.setColor(Color.WHITE);
 
         if (!onTrack) {
@@ -440,14 +470,16 @@ public class RaceScreen extends ScreenAdapter {
         font.setColor(SERVER_COLOR);
         font.draw(batch, serverStatus, HUD_MARGIN, HUD_MARGIN + 2 * lineHeight);
         font.setColor(Color.WHITE);
-        String keys = "Arrows/WASD: drive    R: reset    Tab: leaderboard    F3: debug";
-        if (game.getSession() == null) {
-            keys += "    L: log in";
-        }
-        font.draw(batch, keys, HUD_MARGIN, HUD_MARGIN + lineHeight);
+        font.draw(batch, game.getSession() == null ? KEYS_OFFLINE : KEYS_ONLINE, HUD_MARGIN, HUD_MARGIN + lineHeight);
 
         debugOverlay.draw(batch, font, hudViewport.getWorldWidth() - 300f, top,
                 car.getSpeed(), lapTimer.getNextCheckpoint(), lapTimer.getCheckpointCount(), onTrack);
+    }
+
+    private CharSequence timeLine(String label, int ms) {
+        hudText.setLength(0);
+        hudText.append(label);
+        return LapTimer.appendTime(hudText, ms);
     }
 
     @Override

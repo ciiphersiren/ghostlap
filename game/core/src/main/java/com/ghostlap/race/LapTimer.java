@@ -144,9 +144,30 @@ public class LapTimer {
 
     /** Formats milliseconds as mm:ss.mmm, or dashes when there is no time yet. */
     public static String formatTime(int ms) {
+        return appendTime(new StringBuilder(9), ms).toString();
+    }
+
+    /**
+     * Appends mm:ss.mmm to {@code out} without creating any objects, so the HUD can call it every
+     * frame without making garbage (String.format allocates several objects per call).
+     */
+    public static StringBuilder appendTime(StringBuilder out, int ms) {
         if (ms == NO_TIME) {
-            return "--:--.---";
+            return out.append("--:--.---");
         }
-        return String.format("%02d:%02d.%03d", ms / 60000, (ms / 1000) % 60, ms % 1000);
+        appendTwoDigits(out, ms / 60000).append(':');
+        appendTwoDigits(out, (ms / 1000) % 60).append('.');
+        int millis = ms % 1000;
+        if (millis < 100) {
+            out.append('0');
+        }
+        return appendTwoDigits(out, millis);
+    }
+
+    private static StringBuilder appendTwoDigits(StringBuilder out, int value) {
+        if (value < 10) {
+            out.append('0');
+        }
+        return out.append(value);
     }
 }
