@@ -16,3 +16,6 @@ Thumbs.db
 
 # Secrets
 .env
+
+# Personal study notes (kept local, not published)
+docs/INTERVIEW_PREP.md
