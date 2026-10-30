@@ -1,5 +1,7 @@
 # GhostLap
 
+[![CI](https://github.com/ciiphersiren/ghostlap/actions/workflows/ci.yml/badge.svg)](https://github.com/ciiphersiren/ghostlap/actions/workflows/ci.yml)
+
 **A top-down time-trial racer where you race other players' best laps as ghosts, with Spring Boot microservices that catch cheaters by replaying the ghost on the server.**
 
 Java 21 · libGDX · Spring Boot 4 · PostgreSQL · Redis · Docker · Prometheus/Grafana · GitHub Actions · k6

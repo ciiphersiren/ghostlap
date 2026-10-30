@@ -147,4 +147,4 @@ Rejected laps are stored with their reason and never reach the leaderboard. Each
 - [x] 6. Performance + load test + README/demo
 
 ## Current status
-All 6 phases done. CI not yet run on GitHub (no remote configured). Remaining by hand: demo GIF + Grafana screenshot for the README.
+All 6 phases done. Public repo: https://github.com/ciiphersiren/ghostlap (CI green). Remaining by hand: demo GIF + Grafana screenshot for the README.

@@ -1,5 +1,11 @@
 # Progress
 
+## Published
+
+- Public repo: https://github.com/ciiphersiren/ghostlap (pushed 2026-10-30).
+- First GitHub Actions run (commit `a970c9f`): **success**. All four build-and-test jobs passed, then the Docker image job.
+- `docs/INTERVIEW_PREP.md` stays local only. It is git-ignored and was removed from the history before the first push; a local tag `backup/before-history-rewrite` keeps the old history.
+
 ## Phase 6: Performance and presentation (done)
 
 **Game benchmark:** `cd game; $env:GHOSTLAP_BENCHMARK="1"; .\gradlew.bat lwjgl3:run` (prints `[Startup]` and `[Benchmark]` lines, then exits)
